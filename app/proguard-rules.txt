@@ -1,0 +1,2 @@
+-keep public class com.picsart.studio.gifencoder.GifIOException{<init>(int);}
+-keep class com.picsart.studio.GifInfoHandle{<init>(long,int,int,int);}
