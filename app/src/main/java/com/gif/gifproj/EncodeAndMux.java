@@ -70,10 +70,10 @@ public class EncodeAndMux extends AndroidTestCase {
     private static final int TEST_B1 = 186;
 
     // size of a frame, in pixels
-    private int mWidth = -1;
-    private int mHeight = -1;
+    private int mWidth = 580;
+    private int mHeight = 480;
     // bit rate, in bits per second
-    private int mBitRate = -1;
+    private int mBitRate = 2000000;
 
     // encoder / muxer state
     private MediaCodec mEncoder;
@@ -91,8 +91,8 @@ public class EncodeAndMux extends AndroidTestCase {
      */
     public void testEncodeVideoToMp4() {
         // QVGA at 2Mbps
-        mWidth = 640;
-        mHeight = 480;
+        mWidth = 600;
+        mHeight = 1080;
         mBitRate = 2000000;
 
         try {
@@ -139,7 +139,7 @@ public class EncodeAndMux extends AndroidTestCase {
         // Set some properties.  Failing to specify some of these can cause the MediaCodec
         // configure() call to throw an unhelpful exception.
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar);
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         format.setInteger(MediaFormat.KEY_BIT_RATE, mBitRate);
         format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL);

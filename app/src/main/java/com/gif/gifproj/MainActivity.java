@@ -2,6 +2,8 @@ package com.gif.gifproj;
 
 import android.annotation.TargetApi;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
@@ -55,13 +57,17 @@ public class MainActivity extends ActionBarActivity {
 
     ////
 
-    @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
+
     @Override
     protected void onResume() {
         super.onResume();
-           // createMovie();
+            createMovie();
 
-        createMovie();
+            //EncodeAndMux enc = new EncodeAndMux();
+       // enc.testEncodeVideoToMp4();
+        //MP4Writer wrt = MP4Writer.getInstance().initWithParams();
+        //wrt.createGifMovie();
+
     }
 
     static int  FRAME_RATE = 15;
@@ -78,8 +84,9 @@ public class MainActivity extends ActionBarActivity {
     int mHeight =480;
     boolean mMuxerStarted;
     String OUTPUT_DIR = Environment.getExternalStorageDirectory().getAbsolutePath();
-
-
+    GifDrawable gif = null;
+    public static  boolean flag;
+    Matrix matrix;
     public void createMovie() {
 
         final String gifPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/aaa.gif";
@@ -87,7 +94,7 @@ public class MainActivity extends ActionBarActivity {
         File giffile = new File(gifPath);
         int framecount;
         Bitmap current;
-        GifDrawable gif = null;
+
         try {
             gif = new GifDrawable(gifPath);
         } catch (IOException e) {
@@ -97,14 +104,17 @@ public class MainActivity extends ActionBarActivity {
 
         final int i[] = new int[1];
         try {
-            prepareEncoder();
 
+            if (gif.getCurrentFrame().getWidth()/(gif.getCurrentFrame().getHeight()*1f) <4f/3) {
+                flag = true;
+            }
+
+            prepareEncoder(gif.seekToFrameAndGet(0));
             presentationTime = 0;
             int j = 0;
             framecount = gif.getNumberOfFrames();
             lastImageIndex =framecount;
-
-            for ( i[0] = firstImageIndex; i[0] <= lastImageIndex; i[0]++) {
+            for ( i[0] = 0; i[0] <= gif.getNumberOfFrames(); i[0]++) {
                // drainEncoderCTS(false) ;
                 durationInNanosec = (long) ((float) 50 * 10000);
                 Bitmap bmp = gif.seekToFrameAndGet(i[0]);
@@ -124,16 +134,41 @@ public class MainActivity extends ActionBarActivity {
         }
     }
 
-    public void addFrameForVideo(Bitmap bmp){
+    private static long computePresentationTimeNsec(int frameIndex) {
+        final long ONE_BILLION = 10000000;
+        return frameIndex * ONE_BILLION / FRAME_RATE;
+    }
 
+    public void addFrameForVideo(Bitmap bmp){
+        Bitmap resizedBitmap = null;
         drainEncoderCTS(false);
         durationInNanosec = (long) ( 20 * 10000);
         mWidth = bmp.getWidth();
         mHeight = bmp.getHeight();
-        byte[] yuvBuffer = new byte[mWidth * mHeight * 3 / 2];
-        int[] btmPixels = new int[bmp.getByteCount()];
-        bmp.getPixels(btmPixels, 0, mWidth, 0, 0, mWidth, mHeight);
+
+        byte[] yuvBuffer;
+        int[] btmPixels = new int[0];
+        if(flag && bmp.getWidth()%16 !=0) {
+            mWidth = bmp.getWidth() / 16 * 16;
+            mHeight = bmp.getHeight() / 16 * 16;
+
+            resizedBitmap = Bitmap.createScaledBitmap(bmp, mWidth, mHeight, false);
+
+            btmPixels = new int[resizedBitmap.getByteCount()];
+            resizedBitmap.getPixels(btmPixels, 0, mWidth, 0, 0, mWidth, mHeight);
+        }else {
+            btmPixels = new int[bmp.getByteCount()];
+            bmp.getPixels(btmPixels, 0, mWidth, 0, 0, mWidth, mHeight);
+
+        }
+
+        yuvBuffer   = new byte[mWidth * mHeight * 3 / 2];
+
+
+
         GifEncoder.convertToYUV21(btmPixels, yuvBuffer, mWidth, mHeight);
+       // getNV21(mWidth, mHeight, bitmapToByteBuffer(bmp));
+
         ByteBuffer inputBuffer;
         int inputByteBufferIndex = mEncoder.dequeueInputBuffer(1000);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -142,6 +177,11 @@ public class MainActivity extends ActionBarActivity {
             ByteBuffer[] inputBuffers = mEncoder.getInputBuffers();
             inputBuffer = inputBuffers[inputByteBufferIndex];
         }
+
+       // int[] pixels = new int[btmPixels.length];
+      //  pixels = convertYUV420_NV21toRGB8888(yuvBuffer,mWidth,mHeight);
+       // Bitmap bm = Bitmap.createBitmap(pixels, mWidth, mHeight, Bitmap.Config.ARGB_8888);
+
         inputBuffer.put(yuvBuffer);
 
         mEncoder.queueInputBuffer(inputByteBufferIndex, 0, inputBuffer.capacity(), presentationTime, MediaCodec.CONFIGURE_FLAG_ENCODE);
@@ -150,33 +190,45 @@ public class MainActivity extends ActionBarActivity {
 
 
 
-    private void prepareEncoder() {
+    private void prepareEncoder(Bitmap bmp) {
 
         mBufferInfo = new MediaCodec.BufferInfo();
-        CodecManager.Codecs codecs  = CodecManager.Selector.findCodecsFormMimeType("video/avc",false);
+      /*  CodecManager.Codecs codecs  = CodecManager.Selector.findCodecsFormMimeType("video/avc",false);
         if(codecs.hardwareCodec!=null){
             try {
                 mEncoder = MediaCodec.createByCodecName(codecs.hardwareCodec);
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }*/
+
+        try {
+            mEncoder = MediaCodec.createEncoderByType("video/avc");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+        int colorFormat = 21;
+        if(flag &&  bmp.getWidth()%16 !=0){
+            mWidth = bmp.getWidth()/16 * 16;
+            mHeight = bmp.getHeight()/16 *16;
 
-
-        int colorFormat = codecs.hardwareColorFormat;
-        MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, mWidth, mHeight);
-        format.setInteger(MediaFormat.KEY_COLOR_FORMAT,colorFormat);
+        }else{
+            mWidth = bmp.getWidth();
+            mHeight = bmp.getHeight();
+        }
+        MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC,mWidth,mHeight);
+        format.setInteger(MediaFormat.KEY_COLOR_FORMAT,MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar);
         format.setInteger(MediaFormat.KEY_BIT_RATE, 2000000);
         format.setInteger(MediaFormat.KEY_FRAME_RATE, 15);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 10);
+
 
         mEncoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
 
         mEncoder.start();
 
         String outputPath = new File(OUTPUT_DIR,
-                "test." + mWidth + "x" + mHeight + ".mp4").toString();
-
+                "test." + gif.getCurrentFrame().getWidth() + "x" +  gif.getCurrentFrame().getHeight() + ".mp4").toString();
         try {
             mMuxer = new MediaMuxer(outputPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
         } catch (IOException ioe) {
@@ -186,6 +238,11 @@ public class MainActivity extends ActionBarActivity {
         mTrackIndex = -1;
         mMuxerStarted = false;
     }
+
+
+
+
+
 
     /**
      * Releases encoder resources.  May be called after partial / failed initialization.
@@ -249,6 +306,17 @@ public class MainActivity extends ActionBarActivity {
             default:
                 return false;
         }
+    }
+
+    private byte[] bitmapToByteBuffer(Bitmap bitmap) {
+
+        ByteBuffer b = ByteBuffer.allocate(bitmap.getByteCount());
+        bitmap.copyPixelsToBuffer(b);
+        byte[] bitmapdata = b.array();
+
+        b.clear();
+
+        return bitmapdata;
     }
 
     private void drainEncoderCTS(boolean endOfStream) {
@@ -431,6 +499,50 @@ public class MainActivity extends ActionBarActivity {
         scaled.recycle();
 
         return yuv;
+    }
+
+
+    public static int[] convertYUV420_NV21toRGB8888(byte [] data, int width, int height) {
+        int size = width*height;
+        int offset = size;
+        int[] pixels = new int[size];
+        int u, v, y1, y2, y3, y4;
+
+        // i percorre os Y and the final pixels
+        // k percorre os pixles U e V
+        for(int i=0, k=0; i < size; i+=2, k+=2) {
+            y1 = data[i  ]&0xff;
+            y2 = data[i+1]&0xff;
+            y3 = data[width+i  ]&0xff;
+            y4 = data[width+i+1]&0xff;
+
+            u = data[offset+k  ]&0xff;
+            v = data[offset+k+1]&0xff;
+            u = u-128;
+            v = v-128;
+
+            pixels[i  ] = convertYUVtoRGB(y1, u, v);
+            pixels[i+1] = convertYUVtoRGB(y2, u, v);
+            pixels[width+i  ] = convertYUVtoRGB(y3, u, v);
+            pixels[width+i+1] = convertYUVtoRGB(y4, u, v);
+
+            if (i!=0 && (i+2)%width==0)
+                i+=width;
+        }
+
+        return pixels;
+    }
+
+    private static int convertYUVtoRGB(int y, int u, int v) {
+        int r,g,b;
+
+        r = y + (int)1.402f*v;
+        g = y - (int)(0.344f*u +0.714f*v);
+        b = y + (int)1.772f*u;
+        r = r>255? 255 : r<0 ? 0 : r;
+        g = g>255? 255 : g<0 ? 0 : g;
+        b = b>255? 255 : b<0 ? 0 : b;
+        return 0xff000000 | (b<<16) | (g<<8) | r;
     }
 
     void encodeYUV420SP(byte[] yuv420sp, int[] argb, int width, int height) {
