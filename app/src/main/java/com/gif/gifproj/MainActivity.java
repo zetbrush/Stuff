@@ -133,6 +133,18 @@ public class MainActivity extends ActionBarActivity {
 
         }
     }
+    public Bitmap getResizedBitmap(Bitmap bm, int newWidth, int newHeight) {
+        int width = bm.getWidth();
+        int height = bm.getHeight();
+        float scaleWidth = ((float) newWidth) / width;
+        float scaleHeight = ((float) newHeight) / height;
+        Matrix matrix = new Matrix();
+        matrix.postScale(scaleWidth, scaleHeight);
+        Bitmap resizedBitmap = Bitmap.createBitmap(
+                bm, 0, 0, width, height, matrix, false);
+        bm.recycle();
+        return resizedBitmap;
+    }
 
     private static long computePresentationTimeNsec(int frameIndex) {
         final long ONE_BILLION = 10000000;
@@ -149,11 +161,12 @@ public class MainActivity extends ActionBarActivity {
         byte[] yuvBuffer;
         int[] btmPixels = new int[0];
         if(flag && bmp.getWidth()%16 !=0) {
-            mWidth = bmp.getWidth() / 16 * 16;
-            mHeight = bmp.getHeight() / 16 * 16;
+            mWidth = bmp.getWidth() / 16 * 16 + 16;
+            mHeight = bmp.getHeight() / 16 * 16 + 16;
 
-            resizedBitmap = Bitmap.createScaledBitmap(bmp, mWidth, mHeight, false);
-
+            resizedBitmap =  getResizedBitmap(bmp,mWidth,mHeight);//Bitmap.createScaledBitmap(bmp, mWidth, mHeight, false);
+            mWidth = resizedBitmap.getWidth();
+            mHeight = resizedBitmap.getHeight();
             btmPixels = new int[resizedBitmap.getByteCount()];
             resizedBitmap.getPixels(btmPixels, 0, mWidth, 0, 0, mWidth, mHeight);
         }else {
@@ -209,8 +222,9 @@ public class MainActivity extends ActionBarActivity {
         }
         int colorFormat = 21;
         if(flag &&  bmp.getWidth()%16 !=0){
-            mWidth = bmp.getWidth()/16 * 16;
-            mHeight = bmp.getHeight()/16 *16;
+            Bitmap resizedBitmap =  getResizedBitmap(bmp,mWidth,mHeight);//Bitmap.createScaledBitmap(bmp, mWidth, mHeight, false);
+            mWidth = resizedBitmap.getWidth();
+            mHeight = resizedBitmap.getHeight();
 
         }else{
             mWidth = bmp.getWidth();
@@ -228,7 +242,7 @@ public class MainActivity extends ActionBarActivity {
         mEncoder.start();
 
         String outputPath = new File(OUTPUT_DIR,
-                "test." + gif.getCurrentFrame().getWidth() + "x" +  gif.getCurrentFrame().getHeight() + ".mp4").toString();
+                "test." + mWidth + "x" +  mHeight + ".mp4").toString();
         try {
             mMuxer = new MediaMuxer(outputPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
         } catch (IOException ioe) {
