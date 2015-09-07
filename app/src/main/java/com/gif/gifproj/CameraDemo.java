@@ -116,7 +116,7 @@ public class CameraDemo extends Activity {
 					buttonClick.setEnabled(true);
 					Bundle b = new Bundle();
 					b.putInt("key", 1);
-					Intent intent = new Intent(CameraDemo.this,MainActivity.class);
+					Intent intent = new Intent(CameraDemo.this,MainActiv.class);
 					intent.addFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT);
 					intent.putExtra("bundle",b);
 					startActivity(intent);
