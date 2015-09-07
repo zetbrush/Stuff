@@ -1,6 +1,7 @@
 package com.gif.gifproj;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
@@ -83,7 +84,7 @@ public class MainActiv extends ActionBarActivity {
     boolean mMuxerStarted;
     String OUTPUT_DIR = Environment.getExternalStorageDirectory().getAbsolutePath();
     GifDrawable gif = null;
-    public static  boolean flag;
+    public static  boolean flag = true;
     Matrix matrix;
     public void createMovie() {
 
@@ -103,19 +104,23 @@ public class MainActiv extends ActionBarActivity {
         final int i[] = new int[1];
         try {
 
-            if (gif.getCurrentFrame().getWidth()/(gif.getCurrentFrame().getHeight()*1f) <4f/3) {
+            BitmapFactory.Options ops = new BitmapFactory.Options();
+            ops.inMutable = true;
+
+            Bitmap bmp = BitmapFactory.decodeFile(Environment.getExternalStorageDirectory().getAbsolutePath()+"/vvvvv.png",ops);
+            if (bmp.getWidth()/(bmp.getHeight()*1f) <4f/3) {
                 flag = true;
             }
-
-            prepareEncoder(gif.seekToFrameAndGet(0));
+            prepareEncoder(bmp);
             presentationTime = 0;
             int j = 0;
-            framecount = gif.getNumberOfFrames();
-            lastImageIndex =framecount;
-            for ( i[0] = 0; i[0] <= gif.getNumberOfFrames(); i[0]++) {
+         /*   framecount = gif.getNumberOfFrames();
+            lastImageIndex =framecount;*/
+
+            for ( i[0] = 0; i[0] <= 20; i[0]++) {
                // drainEncoderCTS(false) ;
                 durationInNanosec = (long) ((float) 50 * 10000);
-                Bitmap bmp = gif.seekToFrameAndGet(i[0]);
+               // Bitmap bmp = gif.seekToFrameAndGet(i[0]);
                 addFrameForVideo(bmp);
                 j++;
                 if(i[0]==lastImageIndex)break;
@@ -140,7 +145,7 @@ public class MainActiv extends ActionBarActivity {
         matrix.postScale(scaleWidth, scaleHeight);
         Bitmap resizedBitmap = Bitmap.createBitmap(
                 bm, 0, 0, width, height, matrix, false);
-        bm.recycle();
+
         return resizedBitmap;
     }
 
@@ -158,9 +163,14 @@ public class MainActiv extends ActionBarActivity {
 
         byte[] yuvBuffer;
         int[] btmPixels = new int[0];
-        if(flag && bmp.getWidth()%16 !=0) {
-            mWidth = bmp.getWidth() / 16 * 16 + 16;
-            mHeight = bmp.getHeight() / 16 * 16 + 16;
+        float fact = 0;
+        int diff = 0;
+        if(flag ) {
+
+                mWidth = bmp.getWidth()/16 * 16;
+                fact = bmp.getWidth() / (bmp.getHeight() *1f);
+                mHeight =  bmp.getHeight() - ((int)((bmp.getWidth() % 16) * fact));
+
 
             resizedBitmap =  getResizedBitmap(bmp,mWidth,mHeight);//Bitmap.createScaledBitmap(bmp, mWidth, mHeight, false);
             mWidth = resizedBitmap.getWidth();
@@ -219,7 +229,14 @@ public class MainActiv extends ActionBarActivity {
             e.printStackTrace();
         }
         int colorFormat = 21;
-        if(flag &&  bmp.getWidth()%16 !=0){
+        float fact;
+        if(flag ){
+
+                mWidth = bmp.getWidth()/16 * 16;
+                fact = bmp.getWidth() / (bmp.getHeight() *1f);
+                mHeight =  bmp.getHeight() - ((int)((bmp.getWidth() % 16) * fact));
+
+
             Bitmap resizedBitmap =  getResizedBitmap(bmp,mWidth,mHeight);//Bitmap.createScaledBitmap(bmp, mWidth, mHeight, false);
             mWidth = resizedBitmap.getWidth();
             mHeight = resizedBitmap.getHeight();
