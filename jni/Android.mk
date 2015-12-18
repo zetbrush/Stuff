@@ -20,5 +20,10 @@ LOCAL_SRC_FILES := $(LOCAL_MODULE)/gifflen.cpp
 
 LOCAL_CPP_FEATURES += exceptions
 LOCAL_CPPFLAGS += -fexceptions
+
 LOCAL_LDLIBS := -llog
+LOCAL_LDFLAGS += -ljnigraphics
+
 include $(BUILD_SHARED_LIBRARY)
+APP_OPTIM := debug
+LOCAL_CFLAGS += -g

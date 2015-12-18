@@ -1,8 +1,6 @@
-/* GIFFLEN.CPP
- * Native code used by the Giffle app
+/*
  * Performs color quantization and GIF encoding
  *
- * Mic, 2009
  */
 
 /* NeuQuant Neural-Net Quantization Algorithm
@@ -26,20 +24,21 @@
  * that this copyright notice remain intact.
  */
 
-/* The GIF encoder is based on the SAVE_PIC library written by:
- *  Christopher Street
- *  chris_street@usa.net
- */
 
 
+#include <jni.h>
 #include <jni.h>
 #include "neuquant.h"
 #include "dib.h"
 #include <android/log.h>
 #include <stdio.h>
-
 #define PIXEL_SIZE 4
+#include <android/bitmap.h>
+#include <cstring>
+#include <unistd.h>
 
+#include <stdlib.h>
+#include <malloc.h>
 
 int imgw,imgh;
 int optCol=256, optQuality=100, optDelay=4;
@@ -52,6 +51,12 @@ unsigned int netsize;
 FILE *pGif = NULL;
 
 
+
+#define  LOG_TAG    "DEBUG"
+#define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
+#define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
+
+
 extern "C"
 {
 JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_init(JNIEnv *ioEnv, jobject ioThis, jstring gifName,
@@ -59,6 +64,8 @@ JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_init(JNIEnv
 JNIEXPORT void JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_close(JNIEnv *ioEnv, jobject ioThis);
 JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_addFrame(JNIEnv *ioEnv, jobject ioThis, jintArray inArray);
 JNIEXPORT void JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_convertToYUV21(JNIEnv *env, jobject claz, jintArray srcBuffer, jbyteArray dstBuffer, jint width, jint height);
+JNIEXPORT void JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_getBitmapInYUV(JNIEnv * env, jobject obj, jobject bitmap, jobject bytebuffer);
+
 };
 
 
@@ -90,7 +97,7 @@ JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_init(JNIEnv
     	return -1; /* OutOfMemoryError already thrown */
     }
 
-	__android_log_write(ANDROID_LOG_VERBOSE, "gifflen",str);
+	__android_log_write(ANDROID_LOG_VERBOSE, "gifencoder",str);
 
     if ((pGif = fopen(str, "wb")) == NULL)
     {
@@ -106,7 +113,7 @@ JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_init(JNIEnv
 	imgw = w;
 	imgh = h;
 
-	__android_log_write(ANDROID_LOG_VERBOSE, "gifflen","Allocating memory for input DIB");
+	__android_log_write(ANDROID_LOG_VERBOSE, "gifencoder","Allocating memory for input DIB");
 	data32bpp = new unsigned char[imgw * imgh * PIXEL_SIZE];
 
 	inDIB.bits = data32bpp;
@@ -116,12 +123,12 @@ JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_init(JNIEnv
 	inDIB.pitch = imgw * PIXEL_SIZE;
 	inDIB.palette = NULL;
 
-	__android_log_write(ANDROID_LOG_VERBOSE, "gifflen","Allocating memory for output DIB");
+	__android_log_write(ANDROID_LOG_VERBOSE, "gifencoder","Allocating memory for output DIB");
 	outDIB = new DIB(imgw, imgh, 8);
 	outDIB->palette = new unsigned char[768];
 
 	neuQuant = new NeuQuant();
-__android_log_write(ANDROID_LOG_VERBOSE, "gifflen","NewQuant() instance is created");
+__android_log_write(ANDROID_LOG_VERBOSE, "gifencoder","NewQuant() instance is created");
 	// Output the GIF header and Netscape extension
 	fwrite("GIF89a", 1, 6, pGif);
 	s[0] = w & 0xFF; s[1] = w / 0x100;
@@ -163,6 +170,7 @@ JNIEXPORT void JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_close(JNIEn
 		delete neuQuant;
 		neuQuant = NULL;
 	}
+    __android_log_write(ANDROID_LOG_VERBOSE, "gifencoder"," finished generation: close() method");
 }
 
 
@@ -187,7 +195,7 @@ JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_addFrame(JN
 
 	fwrite(outDIB->palette, 1, optCol * 3, pGif);
 
-	__android_log_write(ANDROID_LOG_VERBOSE, "gifencoder","Doing GIF encoding");
+	__android_log_write(ANDROID_LOG_VERBOSE, "gifencoder","Doing LZW compresson");
 	GIF_LZW_compressor(outDIB, optCol, pGif, 0);
 	return 0;
 	}
@@ -200,7 +208,69 @@ JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_addFrame(JN
 
 	return -1;
 }
+/**store java bitmap as JNI data*/  //
+JNIEXPORT void JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_getBitmapInYUV(JNIEnv * env, jobject obj, jobject bitmap, jobject bytebuffer) {
+    AndroidBitmapInfo bitmapInfo;
+    uint32_t* storedBitmapPixels = NULL;
 
+    int ret;
+    if ((ret = AndroidBitmap_getInfo(env, bitmap, &bitmapInfo)) < 0)
+    {
+        LOGE("AndroidBitmap_getInfo() failed ! error=%d", ret);
+        return ;
+    }
+    LOGD("width:%d height:%d stride:%d", bitmapInfo.width, bitmapInfo.height, bitmapInfo.stride);
+
+    void* bitmapPixels;
+    if ((ret = AndroidBitmap_lockPixels(env, bitmap, &bitmapPixels)) < 0)
+    {
+        LOGE("AndroidBitmap_lockPixels() failed ! error=%d", ret);
+        return ;
+    }
+    uint32_t* src = (uint32_t*) bitmapPixels;
+
+    int pixelsCount = bitmapInfo.height * bitmapInfo.width;
+
+    //jbyteArray dstBuffer = env->NewByteArray(pixelsCount *3/2);
+    int yuvSize = pixelsCount *3/2;
+    jbyte* yuvData = (jbyte*)malloc(yuvSize);//(jbyte*) (env)->GetByteArrayElements(dstBuffer, NULL);
+
+
+    int yIndex = 0;
+    int height = bitmapInfo.height;
+    int width = bitmapInfo.width;
+    int uvIndex = height * width;;
+    int a, R, G, B, Y, U, V;
+    int index = 0;
+    int j;
+
+    for ( j = 0; j < height; j++) {
+        int i;
+        for (i = 0; i < width; i++) {
+            a = ((src[index] & 0xff000000) >> 24); // a is not used obviously
+            R = ((src[index] & 0xff0000) >> 16);
+            G = ((src[index] & 0xff00) >> 8);
+            B = (src[index] & 0xff) >> 0;
+            // well known RGB to YUV algorithm
+            Y = ( (  66 * R + 129 * G +  25 * B + 128) >> 8) +  16;
+            U = ( ( -38 * R -  74 * G + 112 * B + 128) >> 8) + 128;
+            V = ( ( 112 * R -  94 * G -  18 * B + 128) >> 8) + 128;
+
+            yuvData[yIndex++] = ((jbyte) ((Y < 0) ? 0 : ((Y > 255) ? 255 : Y)));
+            if (j % 2 == 0 && index % 2 == 0) {
+                yuvData[uvIndex++] = (jbyte)((V<0) ? 0 : ((V > 255) ? 255 : V));
+                yuvData[uvIndex++] = (jbyte)((U<0) ? 0 : ((U > 255) ? 255 : U));
+            }
+            index ++;
+        }
+    }
+
+
+    AndroidBitmap_unlockPixels(env, bitmap);
+
+    bytebuffer = env->NewDirectByteBuffer(yuvData, yuvSize);
+
+}
 
     JNIEXPORT void JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_convertToYUV21(JNIEnv *env, jobject claz, jintArray srcBuffer, jbyteArray dstBuffer, jint width, jint height) {
                 jint* argbData = (jint*) (env)->GetIntArrayElements(srcBuffer, NULL);
@@ -931,67 +1001,69 @@ void NeuQuant::alterneigh(int rad,int i,register int b,register int g,register i
 
 void NeuQuant::learn()
 {
-	int i,j,b,g,r;
-	int radius,rad,alpha,step,delta,samplepixels;
-	//unsigned char *p;
-	unsigned int *p;
-	unsigned char *lim;
+    int i,j,b,g,r;
+    int radius,rad,alpha,step,delta,samplepixels;
+    //unsigned char *p;
+    unsigned int *p;
+    unsigned char *lim;
 
-	alphadec = 30 + ((samplefac-1)/3);
-	p = (unsigned int*)thepicture;
-	lim = thepicture + lengthcount;
-	samplepixels = lengthcount/(PIXEL_SIZE*samplefac);
-	delta = samplepixels/ncycles;
-	alpha = initalpha;
-	radius = initradius;
+    alphadec = 30 + ((samplefac-1)/3);
+    p = (unsigned int*)thepicture;
+    lim = thepicture + lengthcount;
+    samplepixels = lengthcount/(PIXEL_SIZE*samplefac);
+    delta = samplepixels/ncycles;
+    alpha = initalpha;
+    radius = initradius;
 
-	rad = radius >> radiusbiasshift;
-	if (rad <= 1) rad = 0;
-	for (i=0; i<rad; i++)
-		radpower[i] = alpha*(((rad*rad - i*i)*radbias)/(rad*rad));
+    rad = radius >> radiusbiasshift;
+    if (rad <= 1) rad = 0;
+    for (i=0; i<rad; i++)
+        radpower[i] = alpha*(((rad*rad - i*i)*radbias)/(rad*rad));
 
-	//fprintf(stderr,"beginning 1D learning: initial radius=%d\n", rad);
-	sprintf(s, "samplepixels = %d, rad = %d, a=%d, ad=%d, d=%d", samplepixels, rad, alpha, alphadec, delta);
-	__android_log_write(ANDROID_LOG_VERBOSE, "gifflen",s);
+    //fprintf(stderr,"beginning 1D learning: initial radius=%d\n", rad);
+    sprintf(s, "samplepixels = %d, rad = %d, a=%d, ad=%d, d=%d", samplepixels, rad, alpha, alphadec, delta);
+    __android_log_write(ANDROID_LOG_VERBOSE, "gifencoder",s);
 
-	if ((lengthcount%prime1) != 0) step = prime1;
-	else {
-		if ((lengthcount%prime2) !=0) step = prime2;
-		else {
-			if ((lengthcount%prime3) !=0) step = prime3;
-			else step = prime4;
-		}
-	}
+    if ((lengthcount%prime1) != 0) step = prime1;
+    else {
+        if ((lengthcount%prime2) !=0) step = prime2;
+        else {
+            if ((lengthcount%prime3) !=0) step = prime3;
+            else step = prime4;
+        }
+    }
 
-	i = 0;
-	while (i < samplepixels) {
-		/*b = p[0] << netbiasshift;
-		g = p[1] << netbiasshift;
-		r = p[2] << netbiasshift;*/
-		b = (((*p)) & 0xff) << netbiasshift;
-		g = (((*p) >> 8) & 0xff) << netbiasshift;
-		r = (((*p) >> 16) & 0xff) << netbiasshift;
-		j = contest(b,g,r);
+    i = 0;
+    while (i < samplepixels) {
+        /*b = p[0] << netbiasshift;
+        g = p[1] << netbiasshift;
+        r = p[2] << netbiasshift;*/
+        b = (((*p) >>0) & 0xff) << netbiasshift;
+        g = (((*p) >> 8) & 0xff) << netbiasshift;
+        r = (((*p) >> 16) & 0xff) << netbiasshift;
+        j = contest(b,g,r);
 
-		altersingle(alpha,j,b,g,r);
-		if (rad) alterneigh(rad,j,b,g,r);   /* alter neighbours */
+        altersingle(alpha,j,b,g,r);
+        if (rad) alterneigh(rad,j,b,g,r);   /* alter neighbours */
 
-		p += step;
-		if (p >= (unsigned int *)lim)
-            p = (unsigned int*)thepicture;
+        p += step;
 
-		i++;
-		if (i%delta == 0) {
-			alpha -= alpha / alphadec;
-			radius -= radius / radiusdec;
-			rad = radius >> radiusbiasshift;
-			if (rad <= 1) rad = 0;
-			for (j=0; j<rad; j++)
-				radpower[j] = alpha*(((rad*rad - j*j)*radbias)/(rad*rad));
-		}
-	}
+        if (p >= (unsigned int *) lim) {
+            p = (unsigned int *) ((char *) p - lengthcount);
+        }
 
-	sprintf(s, "final alpha = %f", ((float)alpha)/initalpha);
-	__android_log_write(ANDROID_LOG_VERBOSE, "gifflen",s);
+        i++;
+        if (i%delta == 0) {
+            alpha -= alpha / alphadec;
+            radius -= radius / radiusdec;
+            rad = radius >> radiusbiasshift;
+            if (rad <= 1) rad = 0;
+            for (j=0; j<rad; j++)
+                radpower[j] = alpha*(((rad*rad - j*j)*radbias)/(rad*rad));
+        }
+    }
+
+    sprintf(s, "final alpha = %f", ((float)alpha)/initalpha);
+    __android_log_write(ANDROID_LOG_VERBOSE, "gifencoder",s);
 }
 

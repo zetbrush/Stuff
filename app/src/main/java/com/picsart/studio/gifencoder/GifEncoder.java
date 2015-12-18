@@ -1,8 +1,11 @@
 package com.picsart.studio.gifencoder;
 
+import android.graphics.Bitmap;
+
 import com.picsart.studio.gifencoder.factory.GifEncoderFactory;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 
 /**
  * Created by Arman Andreasyan on 7/6/15.
@@ -53,6 +56,9 @@ public class GifEncoder implements GifEncoderFactory {
     }
 
     public static native void convertToYUV21(int[] sourceBuf, byte[] outPutYuv,int width, int height);
+
+    public static native ByteBuffer getBitmapInYUV(Bitmap btm,ByteBuffer buffer);
+
 
 
 }

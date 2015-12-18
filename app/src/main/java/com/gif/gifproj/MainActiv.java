@@ -60,7 +60,9 @@ public class MainActiv extends ActionBarActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        long time = System.currentTimeMillis();
             createMovie();
+        Log.e("time","time = "+(System.currentTimeMillis() - time));
 
             //EncodeAndMux enc = new EncodeAndMux();
        // enc.testEncodeVideoToMp4();
@@ -106,8 +108,9 @@ public class MainActiv extends ActionBarActivity {
 
             BitmapFactory.Options ops = new BitmapFactory.Options();
             ops.inMutable = true;
+            ops.inPreferredConfig = Bitmap.Config.ARGB_8888;
 
-            Bitmap bmp = BitmapFactory.decodeFile(Environment.getExternalStorageDirectory().getAbsolutePath()+"/vvvvv.png",ops);
+            Bitmap bmp = BitmapFactory.decodeFile(Environment.getExternalStorageDirectory().getAbsolutePath()+"/vvv.png",ops);
             if (bmp.getWidth()/(bmp.getHeight()*1f) <4f/3) {
                 flag = true;
             }
@@ -161,6 +164,7 @@ public class MainActiv extends ActionBarActivity {
         mWidth = bmp.getWidth();
         mHeight = bmp.getHeight();
 
+
         byte[] yuvBuffer;
         int[] btmPixels = new int[0];
         float fact = 0;
@@ -172,41 +176,40 @@ public class MainActiv extends ActionBarActivity {
                 mHeight =  bmp.getHeight() - ((int)((bmp.getWidth() % 16) * fact));
 
 
-            resizedBitmap =  getResizedBitmap(bmp,mWidth,mHeight);//Bitmap.createScaledBitmap(bmp, mWidth, mHeight, false);
+            resizedBitmap =  getResizedBitmap(bmp, mWidth, mHeight);//Bitmap.createScaledBitmap(bmp, mWidth, mHeight, false);
             mWidth = resizedBitmap.getWidth();
             mHeight = resizedBitmap.getHeight();
-            btmPixels = new int[resizedBitmap.getByteCount()];
-            resizedBitmap.getPixels(btmPixels, 0, mWidth, 0, 0, mWidth, mHeight);
-        }else {
-            btmPixels = new int[bmp.getByteCount()];
-            bmp.getPixels(btmPixels, 0, mWidth, 0, 0, mWidth, mHeight);
-
+           /* btmPixels = new int[resizedBitmap.getByteCount()];
+            resizedBitmap.getPixels(btmPixels, 0, mWidth, 0, 0, mWidth, mHeight);*/
         }
 
-        yuvBuffer   = new byte[mWidth * mHeight * 3 / 2];
+       // yuvBuffer   = new byte[mWidth * mHeight * 3 / 2];
 
 
 
-        GifEncoder.convertToYUV21(btmPixels, yuvBuffer, mWidth, mHeight);
+       // GifEncoder.convertToYUV21(btmPixels, yuvBuffer, mWidth, mHeight);
        // getNV21(mWidth, mHeight, bitmapToByteBuffer(bmp));
-
         ByteBuffer inputBuffer;
         int inputByteBufferIndex = mEncoder.dequeueInputBuffer(1000);
+        int capacity =0;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            inputBuffer = mEncoder.getInputBuffer(inputByteBufferIndex);
+            capacity = mEncoder.getInputBuffer(inputByteBufferIndex).capacity();
+            mEncoder.getInputBuffer(inputByteBufferIndex).reset();
+            GifEncoder.getBitmapInYUV(flag ? resizedBitmap : bmp, mEncoder.getInputBuffer(inputByteBufferIndex));
         } else {
             ByteBuffer[] inputBuffers = mEncoder.getInputBuffers();
-            inputBuffer = inputBuffers[inputByteBufferIndex];
+            capacity =inputBuffers[0].capacity();
+            GifEncoder.getBitmapInYUV(flag ? resizedBitmap : bmp, inputBuffers[inputByteBufferIndex]);
         }
 
        // int[] pixels = new int[btmPixels.length];
       //  pixels = convertYUV420_NV21toRGB8888(yuvBuffer,mWidth,mHeight);
        // Bitmap bm = Bitmap.createBitmap(pixels, mWidth, mHeight, Bitmap.Config.ARGB_8888);
 
-        inputBuffer.put(yuvBuffer);
 
-        mEncoder.queueInputBuffer(inputByteBufferIndex, 0, inputBuffer.capacity(), presentationTime, MediaCodec.CONFIGURE_FLAG_ENCODE);
+        mEncoder.queueInputBuffer(inputByteBufferIndex, 0, capacity, presentationTime, MediaCodec.CONFIGURE_FLAG_ENCODE);
         presentationTime += durationInNanosec;
+
     }
 
 
