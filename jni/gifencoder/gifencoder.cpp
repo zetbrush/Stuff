@@ -28,8 +28,6 @@
 
 #include <jni.h>
 #include <jni.h>
-#include "neuquant.h"
-#include "dib.h"
 #include <android/log.h>
 #include <stdio.h>
 #define PIXEL_SIZE 4
@@ -131,17 +129,24 @@ JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_init(JNIEnv
 __android_log_write(ANDROID_LOG_VERBOSE, "gifencoder","NewQuant() instance is created");
 	// Output the GIF header and Netscape extension
 	fwrite("GIF89a", 1, 6, pGif);
-	s[0] = w & 0xFF; s[1] = w / 0x100;
-	s[2] = h & 0xFF; s[3] = h / 0x100;
-	s[4] = 0x50 + max_bits(numColors) - 1;
-	s[5] = s[6] = 0;
-	s[7] = 0x21; s[8] = 0xFF; s[9] = 0x0B;
-	fwrite(s, 1, 10, pGif);
-	fwrite("NETSCAPE2.0", 1, 11, pGif);
-	s[0] = 3; s[1] = 1; s[2] = s[3] = s[4] = 0;
-	fwrite(s, 1, 5, pGif);
+s[0] = w & 0xFF;
+s[1] = w / 0x100;
+s[2] = h & 0xFF;
+s[3] = h / 0x100;
+s[4] = 0x50 +max_bits(numColors)- 1;
+s[5] = s[6] = 0;
+s[7] = 0x21;
+s[8] = 0xFF;
+s[9] = 0x0B;
+fwrite(s,1, 10, pGif);
+fwrite("NETSCAPE2.0", 1, 11, pGif);
+s[0] = 3;
+s[1] = 1;
+s[2] = s[3] = s[4] = 0;
 
-	return 0;
+fwrite(s,1, 5, pGif);
+
+return 0;
 }
 
 
@@ -181,11 +186,20 @@ JNIEXPORT jint JNICALL Java_com_picsart_studio_gifencoder_GifEncoder_addFrame(JN
     try{
 	ioEnv->GetIntArrayRegion(inArray, (jint)0, (jint)(inDIB.width * inDIB.height), (jint*)(inDIB.bits));
 
-	s[0] = '!'; s[1] = 0xF9; s[2] = 4;
-	s[3] = 0; s[4] = optDelay & 0xFF; s[5] = optDelay / 0x100; s[6] = s[7] = 0;
-	s[8] = ','; s[9] = s[10] = s[11] = s[12] = 0; s[13] = imgw & 0xFF; s[14] = imgw / 0x100;
-	s[15] = imgh & 0xFF; s[16] = imgh / 0x100;
-	s[17] = 0x80 + max_bits(optCol) - 1;
+        s[0] = '!';
+        s[1] = 0xF9;
+        s[2] = 4;
+        s[3] = 0;
+        s[4] = optDelay & 0xFF;
+        s[5] = optDelay / 0x100;
+        s[6] = s[7] = 0;
+        s[8] = ',';
+        s[9] = s[10] = s[11] = s[12] = 0;
+        s[13] = imgw & 0xFF;
+        s[14] = imgw / 0x100;
+        s[15] = imgh & 0xFF;
+        s[16] = imgh / 0x100;
+        s[17] = 0x80 + max_bits(optCol) - 1;
 
 	fwrite(s, 1, 18, pGif);
 
